@@ -1,10 +1,11 @@
 import 'reflect-metadata';
+import { ConsoleLogger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { WorkerModule } from './worker.module.js';
 import { EventConsumer } from '../../libs/messaging/consumer.js';
 
 async function main() {
-  const app = await NestFactory.createApplicationContext(WorkerModule);
+  const app = await NestFactory.createApplicationContext(WorkerModule, { logger: new ConsoleLogger({ json: true }) });
   const consumer = app.get(EventConsumer);
   const shutdown = () => {
     consumer.stop();

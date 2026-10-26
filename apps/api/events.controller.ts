@@ -17,7 +17,7 @@ export class EventsController {
   @ApiBody({ type: MatchFinishedDto })
   @ApiResponse({ status: 202, description: 'SNS confirmou publicação; processamento é assíncrono.', schema: { example: { eventId: 'evt-001', status: 'accepted', messageId: 'sns-message-id' } } })
   @ApiResponse({ status: 400, type: ErrorResponse })
-  @ApiResponse({ status: 503, type: ErrorResponse, description: 'Publicação indisponível; repetir com o mesmo eventId.' })
+  @ApiResponse({ status: 503, description: 'Publicação indisponível; repetir com o mesmo eventId.', schema: { example: { statusCode: 503, code: 'PUBLISH_UNAVAILABLE', message: 'Publicação indisponível. Tente novamente com o mesmo eventId.' } } })
   publish(@Body() dto: MatchFinishedDto) { return this.publisher.publish(dto); }
 
   @Get(':eventId')
@@ -46,7 +46,7 @@ export class HealthController {
   constructor(private readonly em: EntityManager) {}
   @Get()
   @ApiResponse({ status: 200, schema: { example: { status: 'ok', database: 'up' } } })
-  @ApiResponse({ status: 503, type: ErrorResponse })
+  @ApiResponse({ status: 503, schema: { example: { statusCode: 503, code: 'DATABASE_UNAVAILABLE', message: 'Banco indisponível.' } } })
   async health() {
     try { await this.em.getConnection().execute('select 1'); return { status: 'ok', database: 'up' }; }
     catch { throw new ServiceUnavailableException({ code: 'DATABASE_UNAVAILABLE', message: 'Banco indisponível.' }); }

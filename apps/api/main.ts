@@ -1,11 +1,12 @@
 import 'reflect-metadata';
+import { ConsoleLogger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ApiModule } from './app.module.js';
 import { configureHttp } from './http.js';
 import { integerEnv } from '../../libs/config.js';
 
 async function main() {
-  const app = await NestFactory.create(ApiModule);
+  const app = await NestFactory.create(ApiModule, { logger: new ConsoleLogger({ json: true }) });
   configureHttp(app);
   app.enableShutdownHooks();
   await app.listen(integerEnv('PORT', 3004), process.env.HOST ?? '127.0.0.1');

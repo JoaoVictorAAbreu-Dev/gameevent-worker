@@ -1,0 +1,9 @@
+const process = require('node:process');
+process.env.DB_HOST = process.env.TEST_DB_HOST || '127.0.0.1';
+process.env.DB_PORT = process.env.TEST_DB_PORT || '5437';
+process.env.DB_NAME = 'gameevent_test';
+process.env.DB_USER = 'gameevent';
+process.env.DB_PASSWORD = 'gameevent_test';
+process.env.MESSAGING_MODE = 'local';
+process.env.AWS_ENDPOINT_URL = process.env.TEST_AWS_ENDPOINT_URL || 'http://localhost:4566';
+process.env.SQS_WAIT_SECONDS = '1';
