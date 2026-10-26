@@ -1,0 +1,111 @@
+name: gameevent
+
+x-db-env: &db-env
+  DB_HOST: db
+  DB_PORT: 5432
+  DB_NAME: gameevent
+  DB_USER: gameevent
+  DB_PASSWORD: ${DB_PASSWORD:-gameevent_local}
+
+x-messaging-env: &messaging-env
+  MESSAGING_MODE: local
+  AWS_ENDPOINT_URL: http://moto:5000
+  AWS_REGION: us-east-1
+  SNS_TOPIC_ARN: arn:aws:sns:us-east-1:123456789012:gameevent-match-finished
+  SQS_QUEUE_NAME: gameevent-results
+  SQS_VISIBILITY_TIMEOUT: 60
+  SQS_WAIT_SECONDS: 20
+
+x-app: &app
+  build: .
+  image: gameevent-worker:local
+
+services:
+  db:
+    image: postgres:17.11-bookworm
+    environment:
+      POSTGRES_DB: gameevent
+      POSTGRES_USER: gameevent
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-gameevent_local}
+    ports: ["127.0.0.1:5436:5432"]
+    volumes: ["postgres_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gameevent -d gameevent"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  moto:
+    image: motoserver/moto:5.2.2
+    ports: ["127.0.0.1:4566:5000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/')"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  init-messaging:
+    <<: *app
+    environment: *messaging-env
+    command: ["npm", "run", "messaging:init"]
+    depends_on:
+      moto: { condition: service_healthy }
+    restart: "no"
+
+  migrate:
+    <<: *app
+    environment: *db-env
+    command: ["npm", "run", "migration:up:prod"]
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    <<: *app
+    environment:
+      <<: [*db-env, *messaging-env]
+      PORT: 3004
+      HOST: 0.0.0.0
+    ports: ["127.0.0.1:3004:3004"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      init-messaging: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3004/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  worker:
+    <<: *app
+    command: ["node", "dist/apps/worker/main.js"]
+    environment:
+      <<: [*db-env, *messaging-env]
+    stop_grace_period: 50s
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      init-messaging: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "node", "-e", "const fs=require('node:fs');try{process.exit(Date.now()-Number(fs.readFileSync('/tmp/gameevent-worker-heartbeat','utf8'))<90000?0:1)}catch{process.exit(1)}"]
+      interval: 15s
+      timeout: 3s
+      start_period: 30s
+      retries: 3
+
+  test-db:
+    image: postgres:17.11-bookworm
+    profiles: [test]
+    environment:
+      POSTGRES_DB: gameevent_test
+      POSTGRES_USER: gameevent
+      POSTGRES_PASSWORD: gameevent_test
+    ports: ["127.0.0.1:5437:5432"]
+    tmpfs: [/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gameevent -d gameevent_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  postgres_data:

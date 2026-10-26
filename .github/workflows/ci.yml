@@ -1,0 +1,44 @@
+name: CI
+on:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: PostgreSQL e emulador SNS/SQS
+        run: docker compose up -d --wait moto test-db
+      - run: npm run check:messaging
+        env:
+          MESSAGING_MODE: local
+          AWS_ENDPOINT_URL: http://localhost:4566
+      - run: npm run test:integration
+      - name: Build Docker
+        run: docker compose build api
+      - name: API e worker em containers
+        run: docker compose up -d --no-build --wait api worker
+      - run: npm run demo
+      - run: git diff --check
+      - name: Logs
+        if: always()
+        run: docker compose logs --no-color --tail=60
+      - name: Encerrar serviços
+        if: always()
+        run: docker compose down
