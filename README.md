@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/portfolio-banner.svg" alt="Banner de apresentação do projeto GameEvent Worker" width="100%"/>
+</p>
+
 # GameEvent Worker
 
 Backend de portfólio que recebe resultados de partidas e os processa de forma assíncrona. A API confirma a publicação no SNS; um worker separado consome a SQS e grava o resultado no PostgreSQL com idempotência transacional.
